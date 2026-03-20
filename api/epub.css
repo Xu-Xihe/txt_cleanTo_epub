@@ -1,0 +1,61 @@
+body {
+    line-height: 1.75;
+    font-family: serif;
+}
+
+/* 正文段落 */
+p {
+    text-indent: 2em;
+    margin: 0 0 0.5em 0;
+}
+
+/* 防止章节后第一段不缩进 */
+h1+p,
+h2+p,
+h3+p {
+    text-indent: 2em;
+}
+
+/* 章节标题 */
+h1 {
+    text-align: center;
+    font-size: 1.5em;
+    margin-top: 2em;
+    margin-bottom: 1em;
+}
+
+h2 {
+    font-size: 1.3em;
+    margin-top: 1.8em;
+    margin-bottom: 0.8em;
+}
+
+h3 {
+    font-size: 1.1em;
+    margin-top: 1.5em;
+}
+
+/* 图片 */
+img {
+    max-width: 100%;
+    display: block;
+    margin: 1em auto;
+}
+
+/* 防止长英文溢出 */
+p,
+li {
+    word-wrap: break-word;
+}
+
+/* 针对占位符渲染成分隔线 */
+.separator {
+    display: block;
+    /* 独占一行 */
+    border-bottom: 1px solid #81D8D0;
+    /* 横线样式 */
+    margin: 1em 0;
+    /* 上下间距 */
+    height: 0;
+    /* 本身不占高度 */
+}
