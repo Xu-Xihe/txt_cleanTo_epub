@@ -44,7 +44,7 @@ docker run -d -p 8888:80 -v /home/path/to/txt:/app/txt ghcr.io/xu-xihe/txt_clean
 >
 > 后端api依靠nginx转发路径/api/，如有需要请更改nginx配置。
 
-1. 下载[最新release包](https://github.com/Xu-Xihe/TXT_cleanTo_EPUB/releases)
+1. 下载[最新release包](https://github.com/Xu-Xihe/TXT_cleanTo_EPUB/releases/latest/download/release.tar.gz)
 
 2. 首先确保正确安装 `nginx` 并导入项目根目录下 `nginx.conf` 配置文件：
 
