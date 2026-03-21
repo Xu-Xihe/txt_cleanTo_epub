@@ -9,9 +9,10 @@ import {
     List,
     ListItemButton,
     ListItemText,
-    useMediaQuery,
     Button,
+    useMediaQuery,
 } from "@mui/material";
+import { useColorScheme } from '@mui/material/styles';
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -19,11 +20,11 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { useEffect, useState, useRef } from "react";
 
 import Editor from '@monaco-editor/react';
-import type * as monaco from "monaco-editor";
+import * as monaco from "monaco-editor";
 
 import { api } from "../hooks/api";
 import { useErrorMsg } from "../components/error_popout";
-import { LoadingEditor, LoadingFullScreen } from "./loading";
+import { LoadingEditor, LoadingCard } from "./loading";
 
 
 interface FileName {
@@ -39,18 +40,20 @@ const BUFFER = 200;
 export default function FileList({ setStep }: { setStep: (step: number) => void }) {
     // Define Value
     const { pushMsg } = useErrorMsg();
-    const isDark = useMediaQuery("(prefers-color-scheme: dark)");
     const [lsFile, setLsFile] = useState<FileName[]>([]);
     const [fileSelect, setFileSelect] = useState<FileName>({ name: "", title: "", creator: "" });
     const [executing, setExecuting] = useState<boolean>(false);
     const [fileSelected, setFileSelected] = useState<number>(0);
     const [openMdaEditor, setOpenMdaEditor] = useState<boolean>(false);
+    const { mode } = useColorScheme();
+    const isDark = useMediaQuery("(prefers-color-scheme: dark)");
 
     const maxLine = useRef<number>(null);
     const controller = useRef<AbortController | null>(null);
     const srollTimeoutRef = useRef<NodeJS.Timeout>(null);
     const orgEditor = useRef<monaco.editor.IStandaloneCodeEditor>(null);
     const mdfEditor = useRef<monaco.editor.IStandaloneCodeEditor>(null);
+    const editorAPI = useRef<typeof monaco.editor>(null);
     const [refreshEditor, setRefreshEditor] = useState<number>(0);
 
 
@@ -67,21 +70,6 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
     const update_mda = (data: FileName) => {
         api.post("/api/file/update", { json: data }).json()
             .catch((error) => { pushMsg("Failed to update metadata: " + error); })
-    }
-
-    const execute = () => {
-        setExecuting(true);
-        api.post("/api/file/execute").json<string[] | null>()
-            .then((data) => {
-                if (data) {
-                    data.forEach((msg) => pushMsg(msg));
-                }
-                setStep(2);
-            })
-            .catch((error) => {
-                pushMsg("Failed to execute file: " + error);
-                setExecuting(false);
-            })
     }
 
 
@@ -154,6 +142,7 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                     pushMsg("Failed to fetch file content: " + error);
                 }
             })
+        mdfEditor.current?.setScrollTop(0);
     }
 
 
@@ -166,10 +155,23 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
             .catch((error) => { pushMsg("获取文件列表失败: " + (error as Error).message); })
     }, []);
 
+    useEffect(() => {
+        if (!editorAPI.current) return;
+        if (mode === "system") {
+            editorAPI.current?.setTheme(isDark ? "myvs-dark" : "myvs");
+        }
+        else if (mode === "dark") {
+            editorAPI.current?.setTheme("myvs-dark");
+        }
+        else {
+            editorAPI.current?.setTheme("myvs");
+        }
+    }, [mode, fileSelected]);
+
 
     return (
         <>
-            {executing && <LoadingFullScreen />}
+            {executing && <LoadingCard list={lsFile.map((f) => f.name)} path="/api/file/execute" next={() => setStep(2)} cancel={() => setExecuting(false)} />}
             <Dialog open={openMdaEditor} onClose={() => { setOpenMdaEditor(false); }} maxWidth={false}>
                 <DialogTitle>编辑作品元数据: {fileSelect.name}</DialogTitle>
                 <DialogContent>
@@ -201,28 +203,31 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                     }} variant="contained">确定</Button>
                 </DialogActions>
             </Dialog>
-            <List sx={{ minWidth: 188, overflow: "auto", height: '100%' }}>
+            <List sx={{ minWidth: 188, maxWidth: 188, overflow: "auto", height: '100%' }}>
                 {lsFile.map((item) => (
-                    <ListItemButton
-                        key={item.name}
-                        onClick={() => {
-                            setFileSelected(1);
-                            file_read(item.name)
-                                .then(() => {
-                                    setFileSelected(2);
-                                    setFileSelect(item);
-                                    setRefreshEditor(Date.now());
-                                })
-                        }}
-                    >
-                        <ListItemText primary={item.name} secondary={
-                            <>
-                                标题: {item.title}
-                                <br />
-                                作者: {item.creator}
-                            </>
-                        } />
-                    </ListItemButton>
+                    <>
+                        <ListItemButton
+                            key={item.name}
+                            onClick={() => {
+                                setFileSelected(1);
+                                file_read(item.name)
+                                    .then(() => {
+                                        setFileSelected(2);
+                                        setFileSelect(item);
+                                        setRefreshEditor(Date.now());
+                                    })
+                            }}
+                        >
+                            <ListItemText primary={item.name} secondary={
+                                <>
+                                    标题: {item.title}
+                                    <br />
+                                    作者: {item.creator}
+                                </>
+                            } />
+                        </ListItemButton>
+                        <Divider variant="middle" />
+                    </>
                 ))}
             </List>
             <Divider orientation="vertical" flexItem />
@@ -283,9 +288,9 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                             variant="contained"
                             startIcon={<DoneAllRoundedIcon />}
                             sx={{ gap: 1 }}
-                            onClick={execute}
+                            onClick={() => setExecuting(true)}
                         >
-                            下一步
+                            开始格式化
                         </Button>
                     </Box>
                     <Box key={fileSelect.name + refreshEditor} sx={{
@@ -298,7 +303,7 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                             height="100%"
                             width="50%"
                             language="text"
-                            theme={isDark ? "vs-dark" : "vs"}
+                            theme="myvs"
                             options={{
                                 readOnly: true,
                                 wordWrap: "on",
@@ -319,6 +324,41 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                             }}
                             onMount={(editor, api) => {
                                 orgEditor.current = editor;
+
+                                api.languages.register({ id: 'clearDiff' });
+                                api.languages.setMonarchTokensProvider('clearDiff', {
+                                    defaultToken: 'text',
+                                    tokenizer: {
+                                        root: [
+                                            // # 开头的行
+                                            [/^#.*$/, 'hashLine'],
+                                            // <div 开头的行
+                                            [/^<div.*$/, 'divLine'],
+                                            // 其他默认
+                                            [/.+/, 'text'],
+                                        ],
+                                    },
+                                });
+                                api.editor.defineTheme('myvs', {
+                                    base: 'vs',
+                                    inherit: true,
+                                    rules: [
+                                        { token: 'hashLine', foreground: '81D8D0', fontStyle: 'bold' },
+                                        { token: 'divLine', foreground: '33FFD6', fontStyle: 'bold italic' },
+                                    ],
+                                    colors: {},
+                                });
+                                api.editor.defineTheme('myvs-dark', {
+                                    base: 'vs-dark',
+                                    inherit: true,
+                                    rules: [
+                                        { token: 'hashLine', foreground: 'F8CDCD', fontStyle: 'bold' },
+                                        { token: 'divLine', foreground: '33FFD6', fontStyle: 'bold italic' },
+                                    ],
+                                    colors: {},
+                                });
+
+
                                 editor.setModel(api.editor.createModel("", "text/plain"));
 
                                 editor.onDidScrollChange(() => {
@@ -332,8 +372,8 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                         <Editor
                             height="100%"
                             width="50%"
-                            language="markdown"
-                            theme={isDark ? "vs-dark" : "vs"}
+                            language="clearDiff"
+                            theme="myvs"
                             options={{
                                 readOnly: true,
                                 wordWrap: "on",
@@ -351,7 +391,8 @@ export default function FileList({ setStep }: { setStep: (step: number) => void 
                             }}
                             onMount={(editor, api) => {
                                 mdfEditor.current = editor;
-                                editor.setModel(api.editor.createModel("", "markdown"));
+                                editorAPI.current = api.editor;
+                                editor.setModel(api.editor.createModel("", "clearDiff"));
                                 setTimeout(handleScroll, 0, true);
                             }}
                         />

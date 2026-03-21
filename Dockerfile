@@ -33,6 +33,8 @@ WORKDIR /app
 
 EXPOSE 80
 
+VOLUME /app/data
+
 # 安装 Python + Pandoc
 RUN apk add --no-cache python3 py3-pip pandoc
 

@@ -46,6 +46,7 @@ export default function ErrorPopout() {
                 <Snackbar
                     key={i + m}
                     open
+                    sx={{ zIndex: 8889 }}
                 >
                     <Alert
                         variant="filled"

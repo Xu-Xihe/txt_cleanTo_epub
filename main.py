@@ -12,6 +12,7 @@ from api.tran import tran_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await pattern.init()
+    PathOpr._temp_path.mkdir(exist_ok=True)
     yield
     await pattern.end()
     if PathOpr._temp_path.exists():

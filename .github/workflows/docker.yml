@@ -48,8 +48,8 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
 
-          DOCKERHUB_IMAGE=starstreammm/txt_cleanto_docker
-          GHCR_IMAGE=ghcr.io/xu-xihe/txt_cleanto_docker
+          DOCKERHUB_IMAGE=starstreammm/txt_cleanto_epub
+          GHCR_IMAGE=ghcr.io/xu-xihe/txt_cleanto_epub
 
           TAGS="$DOCKERHUB_IMAGE:$TAG,$GHCR_IMAGE:$TAG"
 

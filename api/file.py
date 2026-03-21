@@ -3,6 +3,7 @@ import re
 
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from api.path import PathOpr
 from api.pattern import pattern
@@ -24,6 +25,12 @@ class Cursor(BaseModel):
 
     start_line: int
     end_line: int
+
+
+class ExecuteResponse(BaseModel):
+    filename: str
+    progress: float
+    error: str | None = None
 
 
 class FileOpr:
@@ -61,7 +68,7 @@ class FileOpr:
                     PathOpr._path / filename, mode="r", encoding=encoding
                 ) as f:
                     async for line in f:
-                        cls._content.append(line.strip("\n"))
+                        cls._content.append(line.rstrip())
 
             except UnicodeDecodeError:
                 continue
@@ -77,26 +84,55 @@ class FileOpr:
             if not cls._is_empty:
                 cls._is_empty = True
                 return ""
+            else:
+                return None
 
-        elif re.match(r"^\s*[-=]{3,}\s*$", line):
-            return '<div class="separator"></div>'
-
-        elif pt := await pattern.match("adv", line):
+        elif await pattern.match("adv", line):
             return None
+
+        elif re.match(r"^\s*[-=－＝—–─]{3,}\s*$", line):
+            cls._is_empty = True
+            return '<div class="separator"></div>'
 
         elif pt := await pattern.match("volume", line):
             sline = ""
             if not cls._is_empty:
                 sline += "\n"
-            sline += f"{f'# 第{await pattern._int_to_chinese(pt['chapter'])}卷' if pt['chapter'] else ''}{' ' if pt['chapter'] and pt['title'] else ''}{pt['title']}"
+
+            sline += "# "
+
+            if pt.get("chapter"):
+                sline += f"第{await pattern._int_to_chinese(pt['chapter'])}卷"
+
+            if pt.get("chapter") and pt.get("title"):
+                sline += " "
+
+            if pt.get("title"):
+                sline += f"{pt['title']}"
+
             cls._is_empty = True
             return sline + "\n"
 
         elif pt := await pattern.match("chapter", line):
             sline = ""
+
             if not cls._is_empty:
                 sline += "\n"
-            sline += f"{f"## 第{pt['chapter']}章" if pt['chapter'] else ''}{' ' if pt['chapter'] and pt['title'] else ''}{pt['title']}"
+
+            sline += "## "
+
+            if pt.get("chapter"):
+                sline += f"第{pt[('chapter')]}章"
+
+            elif pt.get("extchapter"):
+                sline += f"番外{pt['extchapter']}"
+
+            if (pt.get("chapter") or pt.get("extchapter")) and pt.get("title"):
+                sline += " "
+
+            if pt.get("title"):
+                sline += f"{pt['title']}"
+
             cls._is_empty = True
             return sline + "\n"
 
@@ -106,14 +142,13 @@ class FileOpr:
                 return line.strip()
             else:
                 return "\n" + line.strip()
+
         else:
             cls._is_empty = False
             return line.strip()
 
     @classmethod
     async def get(cls, cursor: Cursor) -> dict[str, list[str]]:
-        print(f"Get content from line {cursor.start_line} to {cursor.end_line}")
-
         if not cls._content:
             raise Exception("No file is read.")
 
@@ -143,32 +178,45 @@ class FileOpr:
 
     @classmethod
     async def execute(cls):
-        error = []
+        # Initialization
         cls._content.clear()
         for i in PathOpr._temp_path.iterdir():
             if i.is_file():
                 i.unlink()
+
+        # Execute
         for i in range(len(cls._file)):
             cls._file[i].temp_name = (
                 f"{cls._file[i].title}{"_" + cls._file[i].creator if cls._file[i].creator else ''}.txt"
             )
             isEncode = False
-            for encoding in ("utf-8", "gbk"):
+            for encoding in ("utf-8", "gbk", "utf-8-sig"):
                 try:
+                    total_size = (PathOpr._path / cls._file[i].name).stat().st_size
+                    current_size = 0
+                    last_progress = 0.0
+                    content = f"---\ntitle: {cls._file[i].title}\nauthor: {cls._file[i].creator}\nlanguage: zh-cn\ndesc: {cls._file[i].desc}\nsource: {cls._file[i].source}\n---\n\n"
                     async with aiofiles.open(
                         PathOpr._path / cls._file[i].name, mode="r", encoding=encoding
-                    ) as fr, aiofiles.open(
+                    ) as fr:
+                        async for line in fr:
+                            if (current_size / total_size) - last_progress >= 0.015:
+                                last_progress = current_size / total_size
+                                yield ExecuteResponse(
+                                    filename=cls._file[i].name,
+                                    progress=round(last_progress, 2),
+                                )
+                            data = await cls._match_line(line.rstrip("\n"))
+                            current_size += len(line.encode(encoding))
+                            if data is not None:
+                                content += data + "\n"
+
+                    async with aiofiles.open(
                         PathOpr._temp_path / cls._file[i].temp_name,
                         mode="w",
                         encoding="utf-8",
                     ) as fw:
-                        await fw.write(
-                            f"---\ntitle: {cls._file[i].title}\nauthor: {cls._file[i].creator}\nlanguage: zh-cn\ndesc: {cls._file[i].desc}\nsource: {cls._file[i].source}\n---\n\n"
-                        )
-                        async for line in fr:
-                            data = await cls._match_line(line)
-                            if data is not None:
-                                await fw.write(data + "\n")
+                        await fw.write(content)
 
                 except UnicodeDecodeError:
                     continue
@@ -176,12 +224,19 @@ class FileOpr:
                     isEncode = True
                     break
             if not isEncode:
-                cls._file[i].temp_name = ""
-                error.append(
-                    f"{cls._file[i].name}: Cannot decode file with utf-8 or gbk"
+                yield ExecuteResponse(
+                    filename=cls._file[i].name,
+                    progress=0.01,
+                    error=f"Execute file {cls._file[i].name}: Cannot decode file with utf-8 or gbk",
                 )
+                cls._file[i].temp_name = ""
 
-        return error if error else None
+            else:
+                yield ExecuteResponse(
+                    filename=cls._file[i].name,
+                    progress=1.0,
+                    error="",
+                )
 
 
 file_router = APIRouter(prefix="/file", tags=["file"])
@@ -225,17 +280,22 @@ async def get(
     end_line: int = Query(..., description="The end line number of the visible area."),
 ):
     try:
-        print(f"Get content from line {start_line} to {end_line}")
         return await FileOpr.get(Cursor(start_line=start_line, end_line=end_line))
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@file_router.post("/execute", response_model=list[str] | None)
+@file_router.post("/execute", response_model=ExecuteResponse | None)
 async def execute():
     try:
-        return await FileOpr.execute()
+
+        async def progress_stream():
+            async for resp in FileOpr.execute():
+                yield resp.model_dump_json().encode("utf-8") + b"\n"
+
+        return StreamingResponse(progress_stream(), media_type="application/json")
+
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=400, detail=str(e))

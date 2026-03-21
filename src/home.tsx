@@ -166,6 +166,7 @@ export default function Home() {
                 display: "flex",
                 justifyContent: "space-evenly",
                 alignItems: "center",
+                zIndex: 9999,
             }}
         >
             <Typography variant="h3">无法连接到服务器，请检查后端服务器状态</Typography>

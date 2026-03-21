@@ -10,18 +10,26 @@ import {
 } from "@mui/material";
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../hooks/api";
 import { useErrorMsg } from "../components/error_popout";
 
 import useLocalStorage from "../hooks/storage";
-import AppleSuccess from "./Success";
+import AppleSuccess from "./success.tsx";
+import { LoadingCard } from "./loading.tsx";
 
 
 interface TranConfig {
     save_txt: boolean;
     del_origin: boolean;
+}
+
+interface FileName {
+    name: string;
+    title: string;
+    creator: string;
+    temp_name: string;
 }
 
 
@@ -30,28 +38,18 @@ export default function TranConfig() {
     const [tranConfig, setTranConfig] = useLocalStorage<TranConfig>("tranconfig", { save_txt: false, del_origin: false }, "local")
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [isSuccess, setIsSuccess] = useState<boolean>(false)
+    const lsFile = useRef<string[]>([]);
 
-    const executeTran = () => {
-        setIsLoading(true)
-        api.post("/api/tran/execute", { json: { tranConfig } }).json<string[]>()
-            .then((data) => {
-                setIsLoading(false)
-                if (data.length > 0) {
-                    for (var i = 0; i < data.length; i += 1) {
-                        pushMsg("File: " + data[i])
-                    }
-                }
-                else { setIsSuccess(true) }
-            })
-            .catch((error) => {
-                pushMsg("Failed to execute tran: " + error);
-                setIsLoading(false)
-            })
-    }
+    useEffect(() => {
+        api.get("/api/tran/ls").json<FileName[]>()
+            .then((data) => lsFile.current = data.map((f) => f.name))
+            .catch((error) => pushMsg("获取文件列表失败: " + (error as Error).message));
+    }, []);
 
     return (
         <>
             {isSuccess && <AppleSuccess />}
+            {isLoading && <LoadingCard list={lsFile.current} path="/api/tran/execute" next={() => setIsSuccess(true)} cancel={() => setIsLoading(false)} fetchargs={{ json: tranConfig }} />}
             <Paper elevation={13} sx={{
                 width: "80%",
                 height: "80%",
@@ -96,9 +94,7 @@ export default function TranConfig() {
                             variant="contained"
                             sx={{ gap: 1 }}
                             startIcon={<DoneAllRoundedIcon />}
-                            loadingPosition="end"
-                            loading={isLoading}
-                            onClick={() => executeTran()}
+                            onClick={() => setIsLoading(true)}
                         >
                             确定
                         </Button>

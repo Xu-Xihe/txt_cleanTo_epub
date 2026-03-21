@@ -147,29 +147,32 @@ export default function FileConfirm({ setStep }: { setStep: (step: number) => vo
     return (
         <>
             {unSavedConfirm()}
-            <List sx={{ minWidth: 188, overflow: "auto", height: '100%' }}>
+            <List sx={{ minWidth: 188, maxWidth: 188, overflow: "auto", height: '100%' }}>
                 {lsFile.map((item) => (
-                    <ListItemButton
-                        key={item.name}
-                        onClick={async () => {
-                            if (!isSaved) {
-                                const ok = await waitForSaveConfirm();
-                                if (!ok) {
-                                    return;
+                    <>
+                        <ListItemButton
+                            key={item.name}
+                            onClick={async () => {
+                                if (!isSaved) {
+                                    const ok = await waitForSaveConfirm();
+                                    if (!ok) {
+                                        return;
+                                    }
                                 }
-                            }
-                            setIsLoading(1);
-                            fetchContent(item)
-                                .then(() => {
-                                    setIsSaved(true);
-                                    setFileSelect(item);
-                                    setRefreshEditor(Date.now());
-                                    setIsLoading(0);
-                                });
-                        }}
-                    >
-                        <ListItemText primary={item.temp_name} />
-                    </ListItemButton>
+                                setIsLoading(1);
+                                fetchContent(item)
+                                    .then(() => {
+                                        setIsSaved(true);
+                                        setFileSelect(item);
+                                        setRefreshEditor(Date.now());
+                                        setIsLoading(0);
+                                    });
+                            }}
+                        >
+                            <ListItemText primary={item.temp_name} />
+                        </ListItemButton>
+                        <Divider variant="middle" />
+                    </>
                 ))}
             </List>
             <Divider orientation="vertical" flexItem />

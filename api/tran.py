@@ -1,12 +1,13 @@
 import aiofiles
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pathlib import Path
 from pydantic import BaseModel
 from pypandoc import convert_file as pd_convert
 
 from api.path import PathOpr
-from api.file import FileInfo, FileOpr
+from api.file import FileInfo, FileOpr, ExecuteResponse
 
 
 class TranConfig(BaseModel):
@@ -26,25 +27,27 @@ class TranOpr:
     async def get(oldname: str) -> dict[str, str]:
         filename = next((f for f in FileOpr._file if f.name == oldname), None)
         if not filename:
-            raise HTTPException(status_code=404, detail="File not found")
+            raise Exception("File not found")
         for encoding in ("utf-8", "gbk"):
             try:
                 async with aiofiles.open(
                     PathOpr._temp_path / filename.temp_name,
                     mode="r",
                     encoding="utf-8",
+                    errors="replace",
                 ) as fmdf, aiofiles.open(
                     PathOpr._path / filename.name, mode="r", encoding=encoding
                 ) as forg:
                     return {"format": await fmdf.read(), "origin": await forg.read()}
             except UnicodeDecodeError:
                 continue
+        raise Exception("Failed to read file with utf-8 and gbk encoding")
 
     @staticmethod
     async def set(oldname: str, content: str):
         filename = next((f for f in FileOpr._file if f.name == oldname), None)
         if not filename:
-            raise HTTPException(status_code=404, detail="File not found")
+            raise Exception("File not found")
         async with aiofiles.open(
             PathOpr._temp_path / filename.temp_name,
             mode="w",
@@ -53,10 +56,9 @@ class TranOpr:
             await fmdf.write(content)
 
     @classmethod
-    async def execute(cls, config: TranConfig) -> list[str]:
-        print(f"Starting conversion... {cls._files}")
-        error = []
+    async def execute(cls, config: TranConfig):
         for f in cls._files:
+            yield ExecuteResponse(filename=f.name, progress=0.0, error="")
             path = (
                 PathOpr._path
                 / "Output"
@@ -64,6 +66,7 @@ class TranOpr:
                 / f.temp_name.replace(".txt", ".epub")
             )
             path.parent.mkdir(parents=True, exist_ok=True)
+            yield ExecuteResponse(filename=f.name, progress=0.3, error="")
             try:
                 pd_convert(
                     str(PathOpr._temp_path / f.temp_name),
@@ -75,9 +78,10 @@ class TranOpr:
                     ],
                 )
             except Exception as e:
-                error.append(f"{f.temp_name}: {str(e)}")
+                yield ExecuteResponse(filename=f.name, progress=0.0, error=str(e))
                 continue
             else:
+                yield ExecuteResponse(filename=f.name, progress=0.9, error="")
                 try:
                     if config.save_txt:
                         (PathOpr._temp_path / f.temp_name).move(
@@ -86,9 +90,10 @@ class TranOpr:
                     if config.del_origin:
                         (PathOpr._path / f.name).unlink()
                 except Exception as e:
-                    error.append(f"{f.temp_name}: {str(e)}")
+                    yield ExecuteResponse(filename=f.name, progress=1.0, error=str(e))
                     continue
-        return error
+                else:
+                    yield ExecuteResponse(filename=f.name, progress=1.0, error="")
 
 
 tran_router = APIRouter(prefix="/tran", tags=["tran"])
@@ -128,10 +133,16 @@ async def set(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@tran_router.post("/execute", response_model=list[str])
+@tran_router.post("/execute", response_model=ExecuteResponse)
 async def execute(config: TranConfig):
     try:
-        return await TranOpr.execute(config)
+
+        async def progress_stream():
+            async for resp in TranOpr.execute(config):
+                yield resp.model_dump_json().encode("utf-8") + b"\n"
+
+        return StreamingResponse(progress_stream(), media_type="application/json")
+
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=400, detail=str(e))

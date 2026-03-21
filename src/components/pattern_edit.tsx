@@ -14,6 +14,7 @@ import {
     Collapse,
     TableContainer,
     Paper,
+    Typography,
     Table,
     TableHead,
     TableRow,
@@ -69,7 +70,7 @@ export default function PatternEdit({ open, setOpen }: { open: boolean, setOpen:
     ];
 
     // Function Part
-    const fetch = async (id: string) => {
+    const fetch = (id: string) => {
         patternTypeMap.map(([type, set]) => {
             if (id === "" || id === type) {
                 api.get(`/api/pattern/${type}`).json<PatternEditProps[]>()
@@ -81,7 +82,7 @@ export default function PatternEdit({ open, setOpen }: { open: boolean, setOpen:
         })
     }
 
-    const update = async (type: string, p: PatternEditProps, old_alias: string) => {
+    const update = (type: string, p: PatternEditProps, old_alias: string) => {
         if (old_alias === "") {
             api.get(`/api/pattern/${type}/delete`, { searchParams: { "alias": p.alias } })
                 .then(() => { fetch(type); })
@@ -97,7 +98,7 @@ export default function PatternEdit({ open, setOpen }: { open: boolean, setOpen:
         fetch(type);
     }
 
-    const reset = async (type: string) => {
+    const reset = (type: string) => {
         api.get(`/api/pattern/${type}/reset`)
             .then(() => { fetch(type); })
             .catch((error) => { pushMsg((error as Error).message); })
@@ -125,11 +126,12 @@ export default function PatternEdit({ open, setOpen }: { open: boolean, setOpen:
                     }
                 }
             }}
+            sx={{ zIndex: 8888 }}
         >
             <DialogTitle>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <Box sx={{ display: "flex", alignItems: "center" }}>
-                        编辑匹配格式
+                        <Typography variant="h6" color="textPrimary">编辑匹配格式</Typography>
                         {extendType === 0 ? null :
                             <Box sx={{ ml: 3, display: "flex", gap: 1 }}>
                                 <Button
@@ -241,7 +243,9 @@ export default function PatternEdit({ open, setOpen }: { open: boolean, setOpen:
                                                                     <>
                                                                         {"{title}: 章节标题"}
                                                                         <br />
-                                                                        {"{chapter}: 章节序号 支持中文+数字"}
+                                                                        {"{chapter}: 正文章节序号 支持中文+数字 显示为第x章"}
+                                                                        <br />
+                                                                        {"{extchapter}: 番外序号 支持中文+数字 显示为番外x"}
                                                                     </>
                                                                 }
                                                                 {index === 3 &&
@@ -256,9 +260,7 @@ export default function PatternEdit({ open, setOpen }: { open: boolean, setOpen:
                                                                 <br />
                                                                 {"{n}: 任意长度英文"}
                                                                 <br />
-                                                                {"{c}: 任意长度汉字"}
-                                                                <br />
-                                                                {"{s}: 任意长度数字+英文+汉字"}
+                                                                {"{s}: 任意长度任意字符 包括空白符"}
                                                             </>}>
                                                                 <TextField
                                                                     variant="outlined"

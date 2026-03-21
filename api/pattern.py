@@ -19,10 +19,10 @@ class pattern:
         r"\{title\}": r"(?P<title>\S.*)",
         r"\{creator\}": r"(?P<creator>[A-Za-z0-9\u4e00-\u9fff]+)",
         r"\{chapter\}": r"(?P<chapter>[零一二三四五六七八九十百千万]+|\d+)",
+        r"\{extchapter\}": r"(?P<extchapter>[零一二三四五六七八九十百千万]+|\d+)",
         r"\{n\}": r"(\d+)",
         r"\{e\}": r"([A-Za-z]+)",
-        r"\{c\}": r"([\u4e00-\u9fff]+)",
-        r"\{s\}": r"[A-Za-z0-9\u4e00-\u9fff\-_()（）[]]+",
+        r"\{s\}": r".*",
     }
 
     _pattern: dict[str, list[Pattern]] = {}
@@ -54,7 +54,7 @@ class pattern:
     _compile_pattern: dict[str, list[re.Pattern]] = {
         key: [] for key in _default_pattern.keys()
     }
-    _path = Path(__file__).parent / "pattern.json"
+    _path = Path(__file__).parent.parent / "data" / "pattern.json"
 
     @staticmethod
     async def _chinese_to_int(s: str) -> int:
@@ -136,6 +136,7 @@ class pattern:
 
     @classmethod
     async def end(cls) -> None:
+        cls._path.parent.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(cls._path, "w") as f:
             await f.write(
                 json.dumps(
@@ -191,11 +192,11 @@ class pattern:
             key=lambda p: len(
                 p.replace(r"{n}", "a")
                 .replace(r"{e}", "")
-                .replace(r"{c}", "")
                 .replace(r"{s}", "")
                 .replace(r"{title}", "a")
                 .replace(r"{creator}", "a")
                 .replace(r"{chapter}", "aa")
+                .replace(r"{extchapter}", "aa")
             ),
             reverse=True,
         )
@@ -215,12 +216,16 @@ class pattern:
             cls._compile_pattern[type].append(re.compile("^" + p + "$"))
 
     @classmethod
-    async def match(cls, type: str, string: str) -> dict[str, str | int] | None:
+    async def match(cls, type: str, string: str) -> dict[str, str | int] | None | bool:
         for p in cls._compile_pattern[type]:
 
             match = p.match(string)
             if not match:
                 continue
+
+            if type == "adv":
+                return True
+
             result = match.groupdict()
 
             if result:
@@ -229,6 +234,13 @@ class pattern:
                         result["chapter"] = int(result["chapter"])
                     except ValueError:
                         result["chapter"] = await cls._chinese_to_int(result["chapter"])
+                if result.get("extchapter"):
+                    try:
+                        result["extchapter"] = int(result["extchapter"])
+                    except ValueError:
+                        result["extchapter"] = await cls._chinese_to_int(
+                            result["extchapter"]
+                        )
 
                 return result
 
