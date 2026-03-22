@@ -26,7 +26,7 @@
 ### Docker 安装（推荐）
 
 ```bash
-docker run -d -p 8888:80 -v /home/path/to/txt:/app/txt starstreammm/txt_cleanto_docker:latest
+docker run -d -p 8888:80 -v /home/path/to/txt:/app/txt starstreammm/txt_cleanto_epub:latest
 ```
 
 也可以选择从Github镜像安装：
@@ -48,7 +48,7 @@ docker run -d -p 8888:80 -v /home/path/to/txt:/app/txt ghcr.io/xu-xihe/txt_clean
    mkdir /etc/nginx/conf.d/
    mv nginx.conf /etc/nginx/conf.d/
    nginx -s reload
-
+   
    # 检查配置是否生效
    nginx -T
    ```

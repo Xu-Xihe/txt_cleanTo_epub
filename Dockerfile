@@ -36,7 +36,7 @@ EXPOSE 80
 VOLUME /app/data
 
 # 安装 Python + Pandoc
-RUN apk add --no-cache python3 py3-pip pandoc tini
+RUN apk add --no-cache python3 py3-pip pandoc tini supervisor
 
 # 拷贝 Python 环境
 COPY --from=backend-build /usr/local/lib/python3.12 /usr/local/lib/python3.12
@@ -49,9 +49,9 @@ COPY --from=frontend-build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # 拷贝应用代码
-COPY main.py .
+COPY main.py supervisord.conf .
 COPY api ./api
 
 # 启动：Python + Nginx
 ENTRYPOINT ["tini", "--"]
-CMD ["sh", "-c", "nginx -g 'daemon off;' & exec uvicorn main:app --host 0.0.0.0 --port 38888"]
+CMD ["supervisord", "-c", "/app/supervisord.conf"]
