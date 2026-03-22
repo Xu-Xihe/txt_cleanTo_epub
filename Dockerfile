@@ -36,7 +36,7 @@ EXPOSE 80
 VOLUME /app/data
 
 # 安装 Python + Pandoc
-RUN apk add --no-cache python3 py3-pip pandoc
+RUN apk add --no-cache python3 py3-pip pandoc tini
 
 # 拷贝 Python 环境
 COPY --from=backend-build /usr/local/lib/python3.12 /usr/local/lib/python3.12
